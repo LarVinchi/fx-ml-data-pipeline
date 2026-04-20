@@ -1,0 +1,3 @@
+[console_scripts]
+s3-tree = s3tree.main:main
+

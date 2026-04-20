@@ -1,0 +1,6 @@
+2026-04-21 00:46:21 | INFO | Initiating API request to Dukascopy for EURUSD (2023-11-01 to 2024-01-31)
+2026-04-21 00:48:16 | INFO | Cleaning and partitioning data for EURUSD...
+2026-04-21 00:48:17 | WARNING | The downloaded file for EURUSD has headers but no data rows. Skipping.
+2026-04-21 00:48:17 | INFO | Initiating API request to Dukascopy for GBPUSD (2023-11-01 to 2024-01-31)
+2026-04-21 00:50:08 | INFO | Cleaning and partitioning data for GBPUSD...
+2026-04-21 00:50:08 | WARNING | The downloaded file for GBPUSD has headers but no data rows. Skipping.
