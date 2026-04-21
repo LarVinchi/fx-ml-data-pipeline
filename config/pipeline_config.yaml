@@ -2,17 +2,21 @@
 pipeline:
   name: "forex_ml_capstone"
 
+# Master date range for BOTH News and Price Action
 data_range:
   start_date: "2023-01-01"
   end_date: "2026-02-28"
 
-assets:
-  # You can add as many pairs here as you want!
+# Dukascopy-specific settings
+dukascopy:
   currencies:
     - "EURUSD"
     - "GBPUSD"
   timeframe: "h1"
 
+# Centralized AWS Paths for the Medallion Architecture
 aws:
   s3_bucket: "forex-datalake-bucket"
-  raw_prefix: "raw/dukascopy/"
+  bronze_prefix: "bronze/"
+  silver_prefix: "silver/"
+  gold_prefix: "gold/"
