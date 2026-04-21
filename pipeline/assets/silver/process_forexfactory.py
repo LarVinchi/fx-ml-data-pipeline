@@ -104,7 +104,7 @@ def main():
         month_str = str(month).zfill(2)
         
         bronze_key = f"{bronze_prefix}forex_factory/year={year}/month={month_str}/snippet.json"
-        silver_key = f"{silver_prefix}macro_economic/year={year}/month={month_str}/forexfactory_clean.parquet"
+        silver_key = f"{silver_prefix}forex_calendar/year={year}/month={month_str}/data.parquet"
         
         # --- IDEMPOTENCY CHECK ---
         try:

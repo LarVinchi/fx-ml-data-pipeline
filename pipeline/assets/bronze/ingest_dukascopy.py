@@ -62,7 +62,7 @@ def main():
     for pair in pairs:
         for year in target_years:
             # Bronze layer path: bronze/dukascopy/pair=EURUSD/year=2023/raw.csv
-            s3_key = f"{bronze_prefix}dukascopy/pair={pair}/year={year}/raw.csv"
+            s3_key = f"{bronze_prefix}dukascopy/pair={pair}/year={year}/raw_{timeframe}.csv"
             
             # --- IDEMPOTENCY CHECK ---
             try:
