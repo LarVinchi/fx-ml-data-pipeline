@@ -1,0 +1,5 @@
+name: forex_ml_pipeline
+schedule: "0 0 * * *" # Runs daily at midnight UTC
+timezone: UTC
+default_connections:
+  aws: aws_default

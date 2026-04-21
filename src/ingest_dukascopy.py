@@ -69,7 +69,7 @@ def fetch_and_process(pair: str, start_str: str, end_str: str, config: dict) -> 
         end_str (str): End date in YYYY-MM-DD format.
         config (dict): Configuration dictionary for S3 and asset metadata.
     """
-    logger.info(f"🚀 Starting ingestion for {pair} ({start_str} to {end_str})")
+    logger.info(f"Starting ingestion for {pair} ({start_str} to {end_str})")
     
     # 1. Fetch from API
     start_dt = datetime.strptime(start_str, "%Y-%m-%d")
@@ -127,7 +127,7 @@ def fetch_and_process(pair: str, start_str: str, end_str: str, config: dict) -> 
         year_df.to_parquet(pq_buf, engine='pyarrow', index=False)
         s3.put_object(Bucket=bucket, Key=silver_key, Body=pq_buf.getvalue())
         
-        logger.success(f"✅ {pair} {year}: Bronze & Silver layers synchronized.")
+        logger.success(f"{pair} {year}: Bronze & Silver layers synchronized.")
 
 def main():
     """Entry point for the Dukascopy ingestion pipeline."""
