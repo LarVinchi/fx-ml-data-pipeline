@@ -2,14 +2,12 @@
 Medallion Architecture Migration Script.
 
 This module upgrades a flat S3 bucket structure into a Hive-partitioned 
-Lakehouse architecture (Bronze/Silver). It migrates raw JSON payloads 
-to the Bronze layer and converts processed CSV files into highly compressed, 
-columnar Parquet files for the Silver layer.
+Lakehouse architecture. It handles both Forex Factory (News) and 
+Dukascopy (Price Action) datasets.
 
-Functions:
-    migrate_bronze: Copies raw JSONs into year/month partitioned folders.
-    migrate_silver: Reads CSVs, converts to Parquet, and writes to partitioned folders.
-    main: Orchestrates the migration process safely.
+Layers:
+    - Bronze: Raw JSON/CSV (Immutable, Hive-partitioned)
+    - Silver: Cleaned Parquet (Structured, Columnar, Hive-partitioned)
 """
 
 import os
@@ -20,107 +18,107 @@ import boto3
 from dotenv import load_dotenv
 from loguru import logger
 
-# Load environment variables for AWS authentication
+# Load environment variables
 load_dotenv()
 
 def get_s3_client():
     """Initializes and returns an authenticated S3 client."""
-    access_key = os.getenv("AWS_ACCESS_KEY_ID", "").strip()
-    secret_key = os.getenv("AWS_SECRET_ACCESS_KEY", "").strip()
-    region = os.getenv("AWS_DEFAULT_REGION", "eu-north-1").strip()
-    
     return boto3.client(
         's3',
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key,
-        region_name=region
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", "").strip(),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", "").strip(),
+        region_name=os.getenv("AWS_DEFAULT_REGION", "eu-north-1").strip()
     )
 
-def migrate_bronze(s3_client, bucket: str):
+def migrate_forex_factory(s3_client, bucket: str):
     """
-    Migrates raw JSON files to the Bronze Hive-partitioned layer.
-    Source: raw/forex_js/snippet_YYYY_MM.json
-    Target: bronze/forex_factory/year=YYYY/month=MM/snippet.json
+    Migrates News data from raw/processed to bronze/silver.
     """
-    logger.info("Starting Bronze Layer Migration...")
-    prefix = "raw/forex_js/"
+    logger.info("Migrating Forex Factory (News) Data...")
     
-    response = s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
-    if 'Contents' not in response:
-        logger.warning("No raw files found to migrate.")
-        return
+    # 1. Bronze (JSON)
+    response = s3_client.list_objects_v2(Bucket=bucket, Prefix="raw/forex_js/")
+    if 'Contents' in response:
+        for obj in response['Contents']:
+            old_key = obj['Key']
+            match = re.search(r'snippet_(\d{4})_(\d{2})\.json', old_key)
+            if match:
+                year, month = match.groups()
+                new_key = f"bronze/forex_factory/year={year}/month={month}/snippet.json"
+                s3_client.copy_object(CopySource={'Bucket': bucket, 'Key': old_key}, Bucket=bucket, Key=new_key)
+                logger.success(f"Migrated Bronze News: {year}-{month}")
 
-    for obj in response['Contents']:
-        old_key = obj['Key']
-        if not old_key.endswith('.json'):
-            continue
-            
-        # Extract YYYY and MM using regex
-        match = re.search(r'snippet_(\d{4})_(\d{2})\.json', old_key)
-        if match:
-            year, month = match.groups()
-            new_key = f"bronze/forex_factory/year={year}/month={month}/snippet.json"
-            
-            # Copy object to new location
-            copy_source = {'Bucket': bucket, 'Key': old_key}
-            s3_client.copy_object(CopySource=copy_source, Bucket=bucket, Key=new_key)
-            logger.success(f"Migrated Bronze: {year}-{month}")
-
-def migrate_silver(s3_client, bucket: str):
-    """
-    Migrates CSV files to the Silver layer, converting them to Parquet format.
-    Source: processed/forex_csv/forex_data_YYYY_MM.csv
-    Target: silver/forex_calendar/year=YYYY/month=MM/data.parquet
-    """
-    logger.info("Starting Silver Layer Migration (CSV to Parquet)...")
-    prefix = "processed/forex_csv/"
-    
-    response = s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
-    if 'Contents' not in response:
-        logger.warning("No processed CSV files found to migrate.")
-        return
-
-    for obj in response['Contents']:
-        old_key = obj['Key']
-        if not old_key.endswith('.csv'):
-            continue
-            
-        match = re.search(r'forex_data_(\d{4})_(\d{2})\.csv', old_key)
-        if match:
-            year, month = match.groups()
-            new_key = f"silver/forex_calendar/year={year}/month={month}/data.parquet"
-            
-            try:
-                # 1. Download CSV to memory
+    # 2. Silver (CSV to Parquet)
+    response = s3_client.list_objects_v2(Bucket=bucket, Prefix="processed/forex_csv/")
+    if 'Contents' in response:
+        for obj in response['Contents']:
+            old_key = obj['Key']
+            match = re.search(r'forex_data_(\d{4})_(\d{2})\.csv', old_key)
+            if match:
+                year, month = match.groups()
+                new_key = f"silver/forex_calendar/year={year}/month={month}/data.parquet"
+                
                 csv_obj = s3_client.get_object(Bucket=bucket, Key=old_key)
                 df = pd.read_csv(io.BytesIO(csv_obj['Body'].read()))
                 
-                # 2. Convert to Parquet in memory
                 parquet_buffer = io.BytesIO()
                 df.to_parquet(parquet_buffer, engine='pyarrow', index=False)
+                s3_client.put_object(Bucket=bucket, Key=new_key, Body=parquet_buffer.getvalue())
+                logger.success(f"Converted Silver News: {year}-{month}")
+
+def migrate_dukascopy(s3_client, bucket: str):
+    """
+    Migrates Price data from raw/dukascopy/ to bronze and silver.
+    """
+    logger.info("Migrating Dukascopy (Price) Data...")
+    
+    # Source: raw/dukascopy/pair=EURUSD/year=2023/raw_4h.csv
+    prefix = "raw/dukascopy/"
+    response = s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
+    
+    if 'Contents' not in response:
+        logger.warning("No Dukascopy files found to migrate.")
+        return
+
+    for obj in response['Contents']:
+        old_key = obj['Key']
+        # Regex to capture Pair and Year
+        match = re.search(r'pair=(\w+)/year=(\d{4})/raw_4h\.csv', old_key)
+        
+        if match:
+            pair, year = match.groups()
+            
+            # 1. Migrate to Bronze (Direct Copy)
+            bronze_key = f"bronze/dukascopy/pair={pair}/year={year}/raw_4h.csv"
+            s3_client.copy_object(CopySource={'Bucket': bucket, 'Key': old_key}, Bucket=bucket, Key=bronze_key)
+            logger.success(f"Migrated Bronze Price: {pair} {year}")
+
+            # 2. Migrate to Silver (CSV to Parquet)
+            silver_key = f"silver/price_action/pair={pair}/year={year}/data_4h.parquet"
+            try:
+                csv_obj = s3_client.get_object(Bucket=bucket, Key=old_key)
+                df = pd.read_csv(io.BytesIO(csv_obj['Body'].read()))
                 
-                # 3. Upload Parquet to new Silver partition
-                s3_client.put_object(
-                    Bucket=bucket, 
-                    Key=new_key, 
-                    Body=parquet_buffer.getvalue()
-                )
-                logger.success(f"Converted & Migrated Silver Parquet: {year}-{month}")
+                # Standardize Silver Column Names
+                df.columns = [col.lower() for col in df.columns]
+                
+                parquet_buffer = io.BytesIO()
+                df.to_parquet(parquet_buffer, engine='pyarrow', index=False)
+                s3_client.put_object(Bucket=bucket, Key=silver_key, Body=parquet_buffer.getvalue())
+                logger.success(f"Converted Silver Price: {pair} {year}")
             except Exception as e:
-                logger.error(f"Failed to process {old_key}: {e}")
+                logger.error(f"Failed Silver Price Migration for {pair}: {e}")
 
 def main():
     bucket_name = "forex-datalake-bucket"
     s3_client = get_s3_client()
     
-    logger.info(f"Initiating Lakehouse Migration for bucket: {bucket_name}")
+    logger.info(f"🔄 Starting Unified Medallion Migration: {bucket_name}")
     
-    # We do not delete the old files automatically (safety first).
-    # Once verified in the AWS Console, the old folders can be manually deleted.
-    migrate_bronze(s3_client, bucket_name)
-    migrate_silver(s3_client, bucket_name)
+    migrate_forex_factory(s3_client, bucket_name)
+    migrate_dukascopy(s3_client, bucket_name)
     
-    logger.info("Migration Complete. Please verify partitions in AWS S3 Console.")
+    logger.info("🏁 Migration Complete. Run 'aws s3 ls --recursive' to verify.")
 
 if __name__ == "__main__":
     main()
