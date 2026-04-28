@@ -267,7 +267,7 @@ forex_ml_capstone/
 ## Step 1: Clone Repository
 
 ```bash
-git clone https://github.com/yourusername/forex_ml_capstone.git
+git clone https://github.com/LarVinchi/fx-ml-data-pipeline.git
 cd forex_ml_capstone
 ```
 
