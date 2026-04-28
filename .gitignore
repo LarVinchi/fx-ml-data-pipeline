@@ -10,6 +10,7 @@ venv/
 *.tfstate
 *.tfstate.backup
 .terraform.tfstate.lock.info
+.terraform.lock.hcl
 
 # Data
 data/
@@ -20,3 +21,9 @@ data/
 logs/
 print_repo_tree.py
 repo_tree.txt
+.bruin.yml
+logs/runs
+logs/*.log
+
+debug_athena.py
+nuke_metadata.py
